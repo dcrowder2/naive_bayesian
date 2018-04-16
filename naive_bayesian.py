@@ -1,5 +1,14 @@
+# naive_bayesian.py
+# Author: Dakota Crowder
+# Email: dcrowder2@alaska.edu
+# A naive bayesian classifier that specifically uses data from SpamHero in a text file called "SpamInstance.txt"
+# to run tests on instances from 100 to 1900 and then the whole file of 15498 instances
+# written for CSCE A415 Machine Learning
+# University of Alaska Anchorage
+# Professor Martin Cenek
+
 from sklearn import model_selection
-from sklearn import metrics
+import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -54,16 +63,16 @@ def bayes_rule(test, data):
     spam_cond_prob, ham_cond_prob, spam_prob, ham_prob = conditional_probability(data)
     hypothesis = []
     for instance in test:
-        prob_spam = 1
-        prob_ham = 1
-        for feature in range(len(instance) - 1):
+        prob_spam = 0
+        prob_ham = 0
+        for feature in range(len(instance[1:]) - 1):
             if instance[feature + 1] == 1:
-                prob_spam *= spam_cond_prob[feature + 1]
-                prob_ham *= ham_cond_prob[feature + 1]
+                prob_spam += np.log(spam_cond_prob[feature + 1])
+                prob_ham += np.log(ham_cond_prob[feature + 1])
             else:
-                prob_spam *= 1 - spam_cond_prob[feature + 1]
-                prob_ham *= 1 - ham_cond_prob[feature + 1]
-        bayes = [prob_ham * ham_prob, prob_spam * spam_prob]
+                prob_spam += np.log((1 - spam_cond_prob[feature + 1]))
+                prob_ham += np.log((1 - ham_cond_prob[feature + 1]))
+        bayes = [prob_ham + np.log(ham_prob), prob_spam + np.log(spam_prob)]
         hypothesis.append((instance[0], np.argmax(bayes), bayes[int(np.argmax(bayes))]))
     return hypothesis
 
@@ -74,23 +83,80 @@ def conditional_probability(array):
     ham = []
     for item in array:
         if item[0] == -1:
-            ham.append(item)
+            ham.append(item[1:])
         else:
-            spam.append(item)
-    spam_prob = np.count_nonzero(spam, axis=0) + 1 / (len(spam) * 1.) + 1
-    ham_prob = np.count_nonzero(ham, axis=0) + 1 / (len(ham) * 1.) + 1
+            spam.append(item[1:])
+    spam_prob = ((np.count_nonzero(spam, axis=0) + 1) / ((len(spam) * 1.) + 1))
+    ham_prob = ((np.count_nonzero(ham, axis=0) + 1) / ((len(ham) * 1.) + 1))
     return spam_prob, ham_prob, (len(spam) / (len(array) * 1.)), (len(ham) / (len(array) * 1.))
+
+
+# takes in an array with structure like this, [[label, guess, prob], ...] , and returns the false positive rate and true
+# positive rate to be used for a ROC curve, and the accuracy
+def roc_calc(array):
+    false_pos = 0
+    true_pos = 0
+    false_neg = 0
+    true_neg = 0
+    for instance in array:
+        if instance[1] == 1 and instance[0] == 1:
+            true_pos += 1
+        elif instance[1] == 0 and instance[0] == -1:
+            true_neg += 1
+        elif instance[1] == 1 and instance[0] == -1:
+            false_pos += 1
+        else:
+            false_neg += 1
+    return (false_pos / (false_pos + true_neg * 1.)), (true_pos / (true_pos + false_neg * 1.)), \
+           (true_neg + true_pos) / (len(array) * 1.)
 
 
 def run():
     print("Loading file")
     features = init("SpamInstances.txt")
+    FPR = []
+    TPR = []
+    accuracy_array = []
+    instances_count = []
+    for i in range(19):
+        stop = 100 * (i+1)
+        instances_count.append(stop)
+        print("Using " + str(stop) + " instances")
+        print("Splitting test and train lists")
+        test, data = train_test_split(features, stop)
+        print("Getting probabilities")
+        temp = np.array(bayes_rule(test, data))
+        print("Calculating FPR, TPR, and Accuracy")
+        fpr, tpr, accuracy = roc_calc(temp)
+        FPR.append(fpr)
+        TPR.append(tpr)
+        accuracy_array.append(accuracy)
+        print("Accuracy = ", end="")
+        print(accuracy)
+    # final run
+    stop = len(features)
+    print("Using " + str(stop) + " instances")
     print("Splitting test and train lists")
-    test, data = train_test_split(features, 100)
+    test, data = train_test_split(features, stop)
     print("Getting probabilities")
     temp = np.array(bayes_rule(test, data))
-    print(temp)
-    print(temp.shape)
+    print("Calculating FPR, TPR, and Accuracy")
+    fpr, tpr, accuracy = roc_calc(temp)
+    FPR.append(fpr)
+    TPR.append(tpr)
+    print("Accuracy = ", end="")
+    print(accuracy)
+    plt.figure()
+    plt.plot(FPR, TPR)
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver operating characteristic')
+    plt.figure()
+    plt.plot(instances_count, accuracy_array)
+    plt.xlabel('Instance count')
+    plt.ylabel('Accuracy')
+    plt.title('Accuracy for each instance count')
+    plt.show()
 
 
 if __name__ == "__main__":
