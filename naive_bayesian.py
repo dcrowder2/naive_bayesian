@@ -46,33 +46,51 @@ def even_spread(array_a, array_b):
 
 # Returns 2 arrays for the train test split using an index for how many instances to use with 80/20 split for train test
 def train_test_split(array, stop):
-    return model_selection.train_test_split(array[:stop], train_size=".2")
+    return model_selection.train_test_split(array[:stop], train_size=.2, test_size=.8)
 
 
-# returns an array for a single instance with the probabilities label | x for each label
-def bayes_rule(array_x, label):
-    return []
+# returns an array for the label with the highest probability and the probability for all instances
+def bayes_rule(test, data):
+    spam_cond_prob, ham_cond_prob, spam_prob, ham_prob = conditional_probability(data)
+    hypothesis = []
+    for instance in test:
+        prob_spam = 1
+        prob_ham = 1
+        for feature in range(len(instance) - 1):
+            if instance[feature + 1] == 1:
+                prob_spam *= spam_cond_prob[feature + 1]
+                prob_ham *= ham_cond_prob[feature + 1]
+            else:
+                prob_spam *= 1 - spam_cond_prob[feature + 1]
+                prob_ham *= 1 - ham_cond_prob[feature + 1]
+        bayes = [prob_ham * ham_prob, prob_spam * spam_prob]
+        hypothesis.append((instance[0], np.argmax(bayes), bayes[int(np.argmax(bayes))]))
+    return hypothesis
 
 
-# returns a 2d array, size (2, feature_size), which is for conditional probability of x | label
+# returns 2 arrays for the probability of xi == 1 | label for spam and ham, as well as prob of spam and ham
 def conditional_probability(array):
-    probability_array = [np.zeros(len(array[0][1:])), np.zeros(len(array[0][1:]))]
     spam = []
     ham = []
-    for i in range(len(array)):
-        if array[0] == -1:
-            spam.append(array[i])
+    for item in array:
+        if item[0] == -1:
+            ham.append(item)
         else:
-            ham.append(array[i])
-    spam_divisor = np.full((1, len(spam[0][1:])), len(spam))
-    ham_divisor = np.full((1, len(ham[0][1:])), len(ham))
-    spam_prob = np.count_nonzero(spam, axis=0) / spam_divisor
-    ham_prob = np.count_nonzero(ham, axis=0) / ham_divisor
+            spam.append(item)
+    spam_prob = np.count_nonzero(spam, axis=0) + 1 / (len(spam) * 1.) + 1
+    ham_prob = np.count_nonzero(ham, axis=0) + 1 / (len(ham) * 1.) + 1
+    return spam_prob, ham_prob, (len(spam) / (len(array) * 1.)), (len(ham) / (len(array) * 1.))
 
 
 def run():
     print("Loading file")
     features = init("SpamInstances.txt")
+    print("Splitting test and train lists")
+    test, data = train_test_split(features, 100)
+    print("Getting probabilities")
+    temp = np.array(bayes_rule(test, data))
+    print(temp)
+    print(temp.shape)
 
 
 if __name__ == "__main__":
